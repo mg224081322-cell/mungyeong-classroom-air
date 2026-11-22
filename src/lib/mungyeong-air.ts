@@ -1,0 +1,1 @@
+export const MUNGYEONG_AIR_TABLE = 'https://www.gb.go.kr/Main/air/page.do?mnu_uid=16628&LARGE_CODE=1140&MEDIUM_CODE=10&SMALL_CODE=10&code2=711&form_control1=68&hour_loc_code=769&term=term2&type=table';

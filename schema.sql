@@ -5,6 +5,19 @@ CREATE TABLE IF NOT EXISTS rate_limit (
   window_start INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS classroom_live (
+  room TEXT PRIMARY KEY,
+  device_digest TEXT,
+  threshold INTEGER NOT NULL DEFAULT 1000,
+  minutes INTEGER NOT NULL DEFAULT 5,
+  ppm INTEGER,
+  measured_at INTEGER,
+  received_at INTEGER,
+  above_since INTEGER,
+  disconnected INTEGER NOT NULL DEFAULT 0,
+  revision INTEGER NOT NULL DEFAULT 0
+);
+
 -- 소유자가 /admin 에서 바꾸는 값(src/content.ts 의 settings). value 는 JSON. 없으면 content.ts 의 기본값.
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,

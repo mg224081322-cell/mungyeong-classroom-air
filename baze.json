@@ -1,1 +1,1 @@
-{ "data": { "tables": [] }, "secrets": ["ADMIN_TOKEN"] }
+{ "data": { "tables": ["classroom_live"] }, "secrets": ["TEACHER_PIN"] }

@@ -1,9 +1,13 @@
 // /api 는 여기서, 나머지 화면은 정적 파일(ASSETS)이 처리한다.
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { issueTeacherAccess } from "../server/teacher-token";
 import { inquiryStatus, settings } from "../src/content";
 import { canMove } from "../src/lib/status";
 import { type Bindings, bad, clean, describeError, ownerOnly, rateLimited } from "./lib";
 import { mountSettings } from "./settings";
+import classroom from "./classroom";
+import { airCacheSeconds, lookupMungyeong } from "../server/mungyeong-air";
 
 const app = new Hono<{ Bindings: Bindings }>().basePath("/api");
 
@@ -14,6 +18,34 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/health", c => c.json({ ok: true }));
+app.get('/air', async c => {
+  const key = new Request(new URL('/api/air', c.req.url));
+  const cache = caches.default;
+  const hit = await cache.match(key).catch(() => undefined);
+  if (hit) return c.json(await hit.json());
+  const air = await lookupMungyeong();
+  const body = { air, station: '문경시' };
+  const ttl = airCacheSeconds(air);
+  if (ttl > 0) c.executionCtx.waitUntil(cache.put(key, Response.json(body, { headers: { 'Cache-Control': `public, max-age=${ttl}` } })).catch(() => {}));
+  return c.json(body);
+});
+app.all('/logs', c => c.json({ error: 'record sharing discontinued' }, 410));
+app.all('/device', c => c.json({ error: 'record sharing discontinued' }, 410));
+app.route('/', classroom);
+
+app.post("/teacher-unlock", bodyLimit({ maxSize: 8192 }), async c => {
+  const secret = c.env.TEACHER_PIN;
+  if (!secret) return c.json({ error: "teacher access not configured" }, 503);
+  if (await rateLimited(c, "classroom-teacher", 10, 60)) return c.json({ error: "too many attempts" }, 429);
+  if (!/^application\/json(?:;|$)/i.test(c.req.header("content-type") ?? "")) return c.json({ error: "invalid input" }, 400);
+  const input = await c.req.json<{ pin?: unknown }>().catch(() => null);
+  const pin = input?.pin;
+  if (typeof pin !== "string" || !pin.length || pin.length > 256) return c.json({ error: "invalid input" }, 400);
+  const encoder = new TextEncoder();
+  const [provided, expected] = await Promise.all([pin, secret].map(value => crypto.subtle.digest("SHA-256", encoder.encode(value))));
+  if (!crypto.subtle.timingSafeEqual(provided, expected)) return c.json({ error: "invalid PIN" }, 401);
+  return c.json(await issueTeacherAccess(secret));
+});
 
 app.get("/admin/summary", ownerOnly, c => c.json({ ok: true }));
 
