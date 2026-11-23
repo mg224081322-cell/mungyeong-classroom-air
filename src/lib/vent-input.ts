@@ -1,4 +1,4 @@
-import type { Reading } from './ventilation';
+import { SAMPLE_MS, type Reading } from './ventilation.ts';
 
 function number(value: unknown) {
   return (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) ? Number(value) : NaN;
@@ -18,6 +18,9 @@ export function parseSerialLine(line: string, at: number): Reading | null {
     return raw && typeof raw === 'object' && !Array.isArray(raw) ? reading(raw, at) : null;
   } catch { return null; }
 }
+
+// Each host-clock slot contributes at most one actual observation. No filling missed slots.
+export const serialSampleSlot = (receivedAt: number) => Math.floor(receivedAt / SAMPLE_MS) * SAMPLE_MS;
 
 export type Field = 'timestamp' | 'humidity' | 'temperature' | 'noise';
 export const fields: Field[] = ['timestamp', 'humidity', 'temperature', 'noise'];
@@ -43,7 +46,7 @@ export function readCsv(text: string): string[][] {
   }
   if (quoted) throw new Error('CSV에 닫히지 않은 따옴표가 있어요.');
   addRow();
-  if (rows.length < 2 || rows[0].length < 3) throw new Error('머리글과 측정 데이터가 있는 쉼표 구분 CSV를 올려 주세요.');
+  if (!rows.length || rows[0].length < 3) throw new Error('측정 시각·습도·온도 머리글이 있는 쉼표 구분 CSV를 올려 주세요.');
   if (rows.length > 20_001) throw new Error('한 번에 측정값 20,000개까지 재생할 수 있어요.');
   return rows;
 }
@@ -52,15 +55,18 @@ export function mapCsv(rows: string[][], mapping: Mapping): Reading[] {
   const selected = fields.map(key => mapping[key]).filter(i => i >= 0);
   if (fields.slice(0, 3).some(key => mapping[key] < 0)) throw new Error('측정 시각, 습도, 온도 열을 선택해 주세요.');
   if (new Set(selected).size !== selected.length) throw new Error('한 열을 여러 항목에 연결할 수 없어요.');
-  const seen = new Set<number>();
-  return rows.slice(1).map((row, i) => {
+  const counts = new Map<number, number>();
+  const samples = rows.slice(1).flatMap(row => {
     const timestamp = row[mapping.timestamp]?.replace(' ', 'T') ?? '';
     const hasTime = /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(timestamp);
     const at = hasTime ? Date.parse(/(?:Z|[+-]\d\d:?\d\d)$/i.test(timestamp) ? timestamp : `${timestamp}+09:00`) : NaN;
+    if (!Number.isSafeInteger(at)) return [];
+    counts.set(at, (counts.get(at) ?? 0) + 1);
     const parsed = reading({ humidity: row[mapping.humidity], temperature: row[mapping.temperature], noise: row[mapping.noise] }, at);
-    if (!parsed || selected.some(index => index >= row.length)) throw new Error(`데이터 ${i + 1}번째 행의 시각과 숫자를 확인해 주세요.`);
-    if (seen.has(at)) throw new Error(`데이터 ${i + 1}번째 행의 측정 시각이 중복돼요.`);
-    seen.add(at);
-    return parsed;
-  }).sort((a, b) => a.at - b.at);
+    return [parsed ?? missingReading(at)];
+  });
+  return samples.map(row => counts.get(row.at) === 1 ? row : missingReading(row.at)).sort((a, b) => a.at - b.at);
 }
+
+// Keep the time of a rejected CSV row so it breaks the window without inventing a value.
+const missingReading = (at: number): Reading => ({ at, humidity: NaN, temperature: NaN, noise: null });

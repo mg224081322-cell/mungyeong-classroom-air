@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { adviceFor, demoSamples, elapsedSince, lastWindowAt, MIN, nextAlert, predict, report, usableAir } from '../src/lib/ventilation.ts';
-import { mapCsv, parseSerialLine, readCsv } from '../src/lib/vent-input.ts';
+import { adviceFor, demoSamples, elapsedSince, lastWindowAt, MIN, nextAlert, predict, report, SAMPLE_MS, usableAir } from '../src/lib/ventilation.ts';
+import { mapCsv, parseSerialLine, readCsv, serialSampleSlot } from '../src/lib/vent-input.ts';
+import { MIN_READINGS, THRESHOLD, predictNeedVent, ventProbability } from '../src/lib/predict.js';
 import { parseAir } from '../api/air.mjs';
 import logs, { writeRow } from '../api/logs.mjs';
 import unlock from '../api/teacher-unlock.mjs';
@@ -39,12 +40,54 @@ test('teacher PIN is server-only, access expires, and old record sharing is disa
   assert.equal(await verify(token), false);
 });
 
-test('provisional rule uses a full 20-minute window and strict temperature threshold', () => {
-  assert.equal(predict([sample(0, 24), sample(19, 25)]), 'measuring');
-  assert.equal(predict([sample(0, 24), sample(20, 24.05)]), 'ok');
-  assert.equal(predict([sample(0, 24), sample(20, 24.06)]), 'ventilate');
-  assert.equal(predict([sample(0, 24), sample(20, 24.06, 48.76)]), 'ok');
-  assert.equal(predict([sample(0, 24), sample(5, 24.10), sample(23, 24.10)]), 'ok');
+const observations = (last = 21.8) => Array.from({ length: 41 }, (_, i) => sample(i / 2, i === 40 ? last : 21.8, 42));
+const modelInput = rows => rows.map(({ humidity, temperature }) => ({ humidity, temp: temperature }));
+
+test('model requires 41 observations and matches both classes of the original logistic regression', () => {
+  assert.equal(MIN_READINGS, 41);
+  assert.equal(THRESHOLD, 0.7);
+  const tooShort = observations().slice(1);
+  assert.equal(predictNeedVent(modelInput(tooShort)), null);
+  assert.equal(predict(tooShort), 'measuring');
+  for (const [rows, expected, display] of [[observations(), 0, 'ok'], [observations(22.3), 1, 'ventilate']]) {
+    assert.equal(predictNeedVent(modelInput(rows)), expected);
+    assert.equal(predict(rows), display);
+    assert.equal(predict(rows.toReversed()), display);
+  }
+  // These fixture scores are on opposite sides of 0.7, not merely opposite sides of 0.5.
+  for (const [temp, expected, display] of [[21.91, 0, 'ok'], [21.98, 1, 'ventilate']]) {
+    const rows = observations(temp);
+    assert.ok(ventProbability(modelInput(rows)) > 0.5);
+    assert.equal(predictNeedVent(modelInput(rows)), expected);
+    assert.equal(predict(rows), display);
+  }
+});
+
+test('missing, duplicate and irregular observations break the window until 41 fresh rows arrive', () => {
+  const rows = observations();
+  assert.equal(predict([...rows, rows[0]]), 'measuring');
+  assert.equal(predict(rows.map((row, i) => i === 7 ? { ...row, at: row.at + 1 } : row)), 'measuring');
+  assert.equal(predict(rows.map((row, i) => i === 7 ? { ...row, humidity: NaN } : row)), 'measuring');
+  assert.equal(predict(rows.map((row, i) => i === 7 ? { ...row, temperature: null } : row)), 'measuring');
+  const later = rows.map(row => ({ ...row, at: row.at + rows.at(-1).at + 2 * SAMPLE_MS }));
+  assert.equal(predict([...rows, ...later.slice(0, 40)]), 'measuring');
+  assert.equal(predict([...rows, ...later]), 'ok');
+});
+
+test('CSV rejects every duplicated timestamp and missing-value row without blocking later valid replay', () => {
+  const rows = observations();
+  const csv = (r, temp = r.temperature) => `${new Date(r.at).toISOString()},${r.humidity},${temp}`;
+  const parse = lines => mapCsv(readCsv(['timestamp,humidity,temperature', ...lines].join('\n')), { timestamp: 0, humidity: 1, temperature: 2, noise: -1 });
+  assert.equal(predict(parse(rows.toReversed().map(r => csv(r)))), 'ok');
+  assert.equal(predict(parse(rows.map((r, i) => csv(r, i === 14 ? '' : r.temperature)))), 'measuring');
+  assert.equal(predict(parse([...rows.map(r => csv(r)), csv(rows[0])])), 'measuring');
+  assert.equal(predict(parse([])), 'measuring');
+});
+
+test('USB clock slots use real parsed readings and leave skipped slots missing', () => {
+  const rows = observations(22.3).map((r, i) => parseSerialLine(JSON.stringify(r), serialSampleSlot(r.at + 1 + (i % 5) * 8)));
+  assert.equal(predict(rows), 'ventilate');
+  assert.equal(predict(rows.filter((_, i) => i !== 15)), 'measuring');
 });
 
 test('demo visits measuring, normal, then ventilation', () => {

@@ -24,9 +24,9 @@ export function CsvForm({ onPlay }: { onPlay: (rows: Reading[], speed: number) =
     try { onPlay(mapCsv(rows, mapping), speed); setError(''); } catch (err) { setError((err as Error).message); }
   }
   return <form className="vent-form" onSubmit={play}>
-    <p>측정값을 CSV의 시각으로 재생해요. 이 기록은 실측 기록과 분리돼 이 브라우저에만 남아요.</p>
+    <p>CSV의 시각으로 재생해요. 30초 간격의 유효한 측정값이 41개 연속으로 있어야 예측하며, 재생 기록은 실시간 센서 기록과 분리돼요.</p>
     <label><span>측정 파일</span><input type="file" accept=".csv,text/csv" onChange={e => void upload(e.target.files?.[0])}/></label>
-    <a className="vent-text-btn" href="/example.csv" download><Download size={16}/>예시 CSV 다운로드</a>
+    <a className="vent-text-btn" href="/example.csv" download><Download size={16}/>예시 CSV 다운로드 (가상 데이터)</a>
     {rows.length > 0 && <><p>{rows.length - 1}개 측정값 · CSV 열을 아래 항목에 연결해 주세요.</p><div className="vent-mapping">{fields.map(key => <label key={key}><span>{labels[key]}</span><select value={mapping[key]} onChange={e => setMapping({ ...mapping, [key]: Number(e.target.value) })}><option value={-1}>{key === 'noise' ? '사용 안 함' : '열 선택'}</option>{rows[0].map((label, i) => <option key={i} value={i}>{i + 1}. {label || '(이름 없음)'}</option>)}</select></label>)}</div></>}
     <label><span>재생 속도</span><select value={speed} onChange={e => setSpeed(Number(e.target.value))}><option value={1}>1배속 · 실제 시간</option><option value={60}>60배속</option><option value={240}>240배속 · 빠른 재생</option></select></label>
     {error && <p role="alert" className="vent-error">{error}</p>}
