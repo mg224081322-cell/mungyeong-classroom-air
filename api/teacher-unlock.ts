@@ -1,13 +1,14 @@
 import { body, equal, json } from '../server/http.mjs';
-import { teacherPin } from '../server/teacher-access.mjs';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { teacherPin } from '../server/teacher-access.ts';
 import { issueTeacherAccess } from '../server/teacher-token.ts';
 import { allowVercelUnlock, classroomPostgres } from '../server/classroom-postgres.mjs';
 
-const attempts = new Map();
+const attempts = new Map<string, { count: number; until: number }>();
 const duration = 60_000;
 let sweepAt = 0;
 
-function retryAfter(req, now = Date.now()) {
+function retryAfter(req: IncomingMessage, now = Date.now()) {
   if (now >= sweepAt) {
     for (const [key, entry] of attempts) if (entry.until <= now) attempts.delete(key);
     sweepAt = now + duration;
@@ -25,7 +26,7 @@ function retryAfter(req, now = Date.now()) {
   return 0;
 }
 
-export default async function handler(req, res) {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return json(res, 405, { error: 'method' }); }
   const secret = teacherPin();
   if (!secret) return json(res, 503, { error: 'teacher access not configured' });

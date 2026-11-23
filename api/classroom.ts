@@ -5,7 +5,7 @@ const routePattern = /^\/classrooms\/[a-z0-9-]+\/(?:latest|teacher\/(?:state|dev
 const answer = (error, status) => Response.json({ error }, { status, headers: { 'Cache-Control': 'no-store' } });
 
 export function createClassroomHandler(getDb, pin) {
-  return async request => {
+  return async (request: Request) => {
     const url = new URL(request.url);
     const { searchParams: params } = url;
     const room = params.get('room') ?? '';

@@ -1,9 +1,10 @@
 import { equal } from './http.mjs';
+import type { IncomingMessage } from 'node:http';
 import { ACCESS_MS, signTeacherAccess } from './teacher-token.ts';
 
 export const teacherPin = () => process.env.TEACHER_PIN || '';
 
-export async function canReadTeacherRecords(req, now = Date.now()) {
+export async function canReadTeacherRecords(req: IncomingMessage, now = Date.now()) {
   const secret = teacherPin();
   const match = /^Bearer (\d{13}\.[\w-]{22})\.([\w-]{43})$/.exec(req.headers.authorization ?? '');
   if (!secret || !match) return false;

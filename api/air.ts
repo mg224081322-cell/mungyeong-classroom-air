@@ -1,10 +1,13 @@
 import { json } from '../server/http.mjs';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Air } from '../src/lib/ventilation.ts';
 import { airCacheSeconds, lookupMungyeong } from '../server/mungyeong-air.ts';
 
 const HOUR = 3600000;
 const DEFAULT_STATION = '문경시';
 const grades = { 1: '좋음', 2: '보통', 3: '나쁨', 4: '매우 나쁨' };
-let cache, pending;
+let cache: { air: Air | null; until: number } | undefined;
+let pending: Promise<void> | undefined;
 
 export function parseAir(items, now) {
   if (!Array.isArray(items)) return null;
@@ -21,7 +24,7 @@ export function parseAir(items, now) {
 
 async function lookup(key, station) {
   const url = new URL('https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty');
-  url.search = new URLSearchParams({ serviceKey: key, stationName: station, returnType: 'json', numOfRows: '4', pageNo: '1', dataTerm: 'DAILY', ver: '1.3' });
+  url.search = new URLSearchParams({ serviceKey: key, stationName: station, returnType: 'json', numOfRows: '4', pageNo: '1', dataTerm: 'DAILY', ver: '1.3' }).toString();
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(4500), redirect: 'error' });
     if (!res.ok) return null;
@@ -31,7 +34,7 @@ async function lookup(key, station) {
   } catch { return null; }
 }
 
-export default async function handler(req, res) {
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); return json(res, 405, { error: 'method' }); }
   const key = process.env.AIRKOREA_SERVICE_KEY?.trim();
   const station = process.env.AIRKOREA_STATION_NAME?.trim() || DEFAULT_STATION;

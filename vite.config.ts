@@ -3,10 +3,10 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import air from './api/air.mjs';
+import air from './api/air.ts';
 import device from './api/device.mjs';
 import logs from './api/logs.mjs';
-import teacherUnlock from './api/teacher-unlock.mjs';
+import teacherUnlock from './api/teacher-unlock.ts';
 import { classroomPreview } from './server/classroom-preview.mjs';
 
 export default defineConfig(({ mode }) => ({
