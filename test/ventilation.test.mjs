@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { adviceFor, demoSamples, elapsedSince, lastWindowAt, MIN, nextAlert, predict, report, SAMPLE_MS, usableAir } from '../src/lib/ventilation.ts';
 import { mapCsv, parseSerialLine, readCsv, serialSampleSlot } from '../src/lib/vent-input.ts';
 import { MIN_READINGS, THRESHOLD, predictNeedVent, ventProbability } from '../src/lib/predict.js';
-import { parseAir } from '../api/air.mjs';
+import { parseAir } from '../api/air.ts';
 import logs, { writeRow } from '../api/logs.mjs';
-import unlock from '../api/teacher-unlock.mjs';
+import unlock from '../api/teacher-unlock.ts';
 import { issueTeacherAccess, verifyTeacherAccess, ACCESS_MS } from '../server/teacher-token.ts';
 import { canWrite, deviceCookie } from '../server/http.mjs';
 
