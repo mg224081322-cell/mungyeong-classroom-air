@@ -1,4 +1,7 @@
+import { MIN_READINGS, predictNeedVent } from './predict.js';
+
 export const MIN = 60_000;
+export const SAMPLE_MS = 30_000;
 export const WINDOW = 20 * MIN;
 export const RESPONSE = 10 * MIN;
 export const AIR_MAX_AGE = 120 * MIN;
@@ -18,16 +21,18 @@ export type Alert = Base & { kind: 'alert'; grade: Grade | null; advice: Advice 
 export type ActionEvent = Base & { kind: 'action'; action: Action };
 export type LogEvent = Alert | ActionEvent;
 
-export function predict(samples: Reading[]): Prediction {
-  const current = samples.at(-1);
-  if (!current) return 'measuring';
-  const cutoff = current.at - WINDOW;
-  let i = samples.length - 1;
-  while (i >= 0 && samples[i].at > cutoff) i--;
-  if (i < 0) return 'measuring';
-  const before = samples[i], after = samples[i + 1];
-  const baseline = before.at === cutoff ? before.temperature : before.temperature + (after.temperature - before.temperature) * (cutoff - before.at) / (after.at - before.at);
-  return current.temperature - baseline > 0.05 + 1e-10 && current.humidity <= 48.75 ? 'ventilate' : 'ok';
+export const isObservation = ({ at, humidity, temperature }: Reading) =>
+  Number.isSafeInteger(at) && Number.isFinite(humidity) && Number.isFinite(temperature);
+
+export function predict(samples: readonly Reading[]): Prediction {
+  if (samples.length < MIN_READINGS || samples.some(row => !Number.isSafeInteger(row.at))) return 'measuring';
+  const sorted = [...samples].sort((a, b) => a.at - b.at);
+  const start = sorted.length - MIN_READINGS;
+  const window = sorted.slice(start);
+  if (sorted[start - 1]?.at === window[0].at || window.some((row, i) =>
+    !isObservation(row) || (i > 0 && row.at - window[i - 1].at !== SAMPLE_MS))) return 'measuring';
+  const result = predictNeedVent(window.map(({ humidity, temperature }) => ({ humidity, temp: temperature })));
+  return result === null ? 'measuring' : result === 1 ? 'ventilate' : 'ok';
 }
 
 export function usableAir(air: Air | null, at: number) {
@@ -86,8 +91,7 @@ export function report(events: LogEvent[], clocks: Record<string, number>, now: 
 export function demoSamples(now: number): Reading[] {
   // Start earlier on the same Korean calendar day so all demo entries are easy to find.
   const start = Date.parse(`${dayKey(now)}T09:00:00+09:00`);
-  return Array.from({ length: 53 }, (_, i) => ({ at: start + i * 30_000,
-    humidity: i >= 47 ? 48.4 : Number((53.2 - i * 0.08).toFixed(2)),
-    temperature: Number((23.4 + Math.max(0, i - 39) * 0.035).toFixed(2)), noise: 36 + i % 6,
+  return Array.from({ length: 53 }, (_, i) => ({ at: start + i * SAMPLE_MS,
+    humidity: 42, temperature: 21.8 + Math.max(0, i - 40) * 0.08, noise: 36 + i % 6,
   }));
 }

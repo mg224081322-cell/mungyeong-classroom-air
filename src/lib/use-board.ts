@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { parseSerialLine } from './vent-input';
+import { parseSerialLine, serialSampleSlot } from './vent-input';
 import { CLOCK_KEY, EVENT_KEY, load, localSensor, save } from './vent-store';
-import { adviceFor, demoSamples, MIN, nextAlert, predict, RESPONSE, usableAir, WINDOW, type Action, type Air, type Alert, type LogEvent, type Prediction, type Reading, type ReadingSource, type SensorLog } from './ventilation';
+import { adviceFor, demoSamples, isObservation, MIN, nextAlert, predict, RESPONSE, SAMPLE_MS, usableAir, WINDOW, type Action, type Air, type Alert, type LogEvent, type Prediction, type Reading, type ReadingSource, type SensorLog } from './ventilation';
 
 type SerialPort = { readable: ReadableStream<Uint8Array> | null; open(options: { baudRate: number }): Promise<void>; close(): Promise<void> };
 type Session = {
@@ -89,13 +89,16 @@ export function useBoard() {
 
   function ingest(s: Session, value: Reading) {
     s.now = value.at;
-    s.latest = value;
+    s.latest = isObservation(value) ? value : null;
     s.samples.push(value);
-    while (s.samples.length > 2 && s.samples[1].at <= value.at - WINDOW) s.samples.shift();
+    while (s.samples[0].at < value.at - WINDOW) s.samples.shift();
     const past = s.prediction;
     s.prediction = predict(s.samples);
-    const log: SensorLog = { ...value, id: crypto.randomUUID(), session: s.id, source: s.source, prediction: s.prediction };
-    void localSensor(log).catch(() => setStorageError('브라우저 저장 공간에 측정값을 저장하지 못했어요.'));
+    if (s.prediction === 'measuring') s.active = null;
+    if (s.latest) {
+      const log: SensorLog = { ...value, id: crypto.randomUUID(), session: s.id, source: s.source, prediction: s.prediction };
+      void localSensor(log).catch(() => setStorageError('브라우저 저장 공간에 측정값을 저장하지 못했어요.'));
+    }
     checkAlert(s, past);
     if (s.source === 'demo' && past === 'measuring' && s.prediction === 'ok') s.holdUntil = performance.now() + 2200;
     if (s.source === 'demo' && s.active && past !== 'ventilate') s.paused = true;
@@ -145,8 +148,8 @@ export function useBoard() {
     if (s.source === 'serial') {
       updateClock(s, Date.now());
       if (connected) void refreshAir();
-      if (connected && s.latest && s.now - s.latest.at > 90_000 && s.prediction !== 'measuring') {
-        s.samples = []; s.prediction = 'measuring';
+      if (connected && s.samples.length && s.latest && serialSampleSlot(s.now) > s.latest.at + SAMPLE_MS) {
+        s.samples = []; s.prediction = 'measuring'; s.active = null;
         setNotice('센서 측정값이 들어오지 않아요. USB와 센서 출력을 확인해 주세요.');
       }
       redraw();
@@ -161,7 +164,13 @@ export function useBoard() {
       ingest(s, row);
       if (s.paused || performance.now() < s.holdUntil) break;
     }
-    if (!s.paused && performance.now() >= s.holdUntil) updateClock(s, target);
+    if (!s.paused && performance.now() >= s.holdUntil) {
+      updateClock(s, target);
+      const last = s.samples.at(-1);
+      if (s.source === 'csv' && s.index < s.rows.length && last && target >= last.at + SAMPLE_MS) {
+        s.prediction = 'measuring'; s.active = null;
+      }
+    }
     if (s.now >= end) s.ended = true;
     if (events.current.some(row => row.session === s.id)) {
       clocks.current[s.id] = s.now;
@@ -183,9 +192,10 @@ export function useBoard() {
     if (reader.current) void reader.current.cancel().catch(() => {});
     setConnected(false);
     setNotice('');
-    const s = createSession(source, rows[0].at, rows, speed);
+    const s = createSession(source, rows[0]?.at ?? Date.now(), rows, speed);
     session.current = s;
-    ingest(s, rows[s.index++]);
+    if (rows.length) ingest(s, rows[s.index++]);
+    else s.ended = true;
     redraw();
   }
 
@@ -276,11 +286,12 @@ export function useBoard() {
         if (buffer.length > 8192) buffer = '';
         for (const line of lines) {
           const now = Date.now();
-          if (s.latest && now - s.latest.at < 30_000) continue;
-          const parsed = parseSerialLine(line.trim(), now);
+          const slot = serialSampleSlot(now);
+          if (s.latest && slot <= s.latest.at) continue;
+          const parsed = parseSerialLine(line.trim(), slot);
           if (parsed) {
-            if (s.latest && now - s.latest.at > 90_000) { s.samples = []; s.prediction = 'measuring'; setNotice(''); }
-            updateClock(s, now); ingest(s, parsed); redraw();
+            setNotice('');
+            updateClock(s, slot); ingest(s, parsed); redraw();
           } else if (line.trim()) setNotice('센서 출력 형식을 확인해 주세요. 올바른 줄을 기다리고 있어요.');
         }
       }

@@ -38,8 +38,8 @@ export default function Home() {
   const canDemo = !replaying && !board.connected;
   const active = s?.active;
   const status = active ? 'alert' : s?.prediction === 'ok' ? 'ok' : s?.prediction === 'ventilate' ? 'hold' : 'measuring';
-  const headline = unmeasured && !active ? '교실 공기 상태 미측정' : { alert: '곧 환기가 필요해요', ok: '괜찮아요', hold: '환기 상태를 살피는 중', measuring: '측정 중' }[status];
-  const subtitle = unmeasured ? board.connected ? '센서에서 첫 측정값을 기다리고 있어요.' : '센서를 연결하면 교실 온도와 습도가 표시돼요.' : status === 'ok' ? '현재 임시 규칙에 따른 환기 알림이 없어요.' : status === 'hold' ? '같은 안내가 반복되지 않도록 잠시 기다리고 있어요.' : '최근 20분간의 측정값이 모이면 환기 상태를 알려드려요.';
+  const headline = unmeasured && !board.connected && !active ? '교실 공기 상태 미측정' : { alert: '곧 환기가 필요해요', ok: '괜찮아요', hold: '환기 상태를 살피는 중', measuring: '측정 중' }[status];
+  const subtitle = unmeasured ? board.connected ? '센서에서 첫 측정값을 기다리고 있어요.' : '센서를 연결하면 교실 온도와 습도가 표시돼요.' : status === 'ok' ? '모델이 30분 안에 환기가 필요할 가능성을 낮게 봤어요.' : status === 'hold' ? '같은 안내가 반복되지 않도록 잠시 기다리고 있어요.' : '30초 간격의 유효한 온도·습도 기록 41개(20분)가 연속으로 모이면 예측해요.';
   const displayedAdvice = active && adviceFor(air?.grade ?? null) === active.advice ? active.advice : '바깥 미세먼지 확인 필요';
   const stop = () => board.stop();
   useEffect(() => {
@@ -76,7 +76,7 @@ export default function Home() {
     </div></header>
     <main id="vent-main" tabIndex={-1} className="vent-shell vent-main">
       {teacher ? outlet : timerMode ? <TimerBoard timer={board.timer} lastWindow={lastWindow} storageError={board.storageError}/> : <>
-        <div className="vent-context"><div><span className="vent-context-icon"><Radio size={19}/></span><span>{replaying ? sourceLabel[s.source] : '교실 현황'}</span></div><div className="co2-context-tools">{!replaying && <a className="vent-text-btn" href="#co2-home-title">CO₂ 실시간 조회</a>}<span className="vent-rule"><Info size={15}/>{unmeasured ? '실시간 현황' : '임시 규칙 · 미검증'}</span></div></div>
+        <div className="vent-context"><div><span className="vent-context-icon"><Radio size={19}/></span><span>{replaying ? sourceLabel[s.source] : '교실 현황'}</span></div><div className="co2-context-tools">{!replaying && <a className="vent-text-btn" href="#co2-home-title">CO₂ 실시간 조회</a>}<span className="vent-rule"><Info size={15}/>{unmeasured && !board.connected ? '실시간 현황' : '로지스틱 회귀 예측'}</span></div></div>
         <section className={`vent-hero ${status}${unmeasured ? ' vent-unmeasured' : ''}`} aria-labelledby="vent-status-title">
           <div className="vent-orbit" aria-hidden="true"><i/><i/><i/><div>{active ? <Wind size={40}/> : status === 'ok' ? <Check size={40}/> : <Activity size={40}/>}</div></div>
           <div className="vent-hero-content">
