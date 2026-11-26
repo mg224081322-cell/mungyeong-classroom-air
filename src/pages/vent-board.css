@@ -1,4 +1,14 @@
 .vent-app{--mint:#087057;--dark:#172c26;--soft:#e9f5ef;--line:#dce8e2;--muted:#52675f;min-height:100svh;color:var(--dark);background:#f5f8f7;word-break:keep-all;line-height:1.7}
+.vent-forecast{margin-top:15px;border:1px solid #b9d3e6;border-radius:14px;background:#f2f8fd;color:#1f435b}
+.vent-forecast summary{min-height:48px;padding:10px 16px;cursor:pointer;border-radius:inherit;touch-action:manipulation}
+.vent-forecast summary:hover{background:#e7f1fa}.vent-forecast summary:focus-visible{outline:2px solid #245c9c;outline-offset:3px}
+.vent-forecast summary span{margin-inline-start:.65em;font-size:14px;color:#375b74}
+.vent-forecast-body{display:grid;gap:7px;padding:6px 16px 14px;font-size:14px}
+.vent-forecast-body table{width:100%;max-width:34rem;background:white;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}
+.vent-forecast-body caption{text-align:left;font-weight:700;padding-block:4px}
+.vent-forecast-body :is(th,td){padding:5px 8px;border-bottom:1px solid #d8e7f2}
+.vent-forecast-body thead{background:#e7f1fa}.vent-forecast-body tbody th{font-weight:600}
+.vent-forecast-links{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px}.vent-forecast-links a{text-decoration:underline;text-underline-offset:3px}.vent-forecast-links a:hover{color:#174b80}.vent-forecast-links button{min-height:44px;touch-action:manipulation}
 .vent-skip{position:fixed;z-index:10;top:8px;left:8px;padding:8px 14px;background:white;color:#075943;border-radius:8px;transform:translateY(-150%)}.vent-skip:focus{transform:none}.vent-app h1{text-wrap:balance}
 .vent-timer-setup{display:flex;flex-wrap:wrap;align-items:end;justify-content:center;gap:10px;margin:20px auto 0;text-align:left}.vent-timer-setup label{display:grid;gap:4px;color:var(--muted);font-weight:670;font-size:13px}.vent-timer-setup select{min-height:46px;padding:6px 28px 6px 12px;border:1px solid #ceddd6;border-radius:9px;background:white;color:var(--dark);font-size:15px}.vent-timer-setup button{min-height:46px}.vent-timer-hero:not(.alert) h1{font-size:clamp(2.1rem,5vw,4.35rem)}.vent-countdown{font-size:clamp(3.6rem,9vw,6rem);font-weight:800;line-height:1.15;color:var(--mint);font-variant-numeric:tabular-nums}.vent-end-lesson{margin-top:9px}.vent-timer-dot{width:7px;height:7px;border-radius:50%;background:#087057}.vent-timer-dot.is-due{background:#245c9c;outline:2px solid #c6dcf4}.vent-app .vent-timer-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:425px){.vent-top .vent-top-inner nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}}

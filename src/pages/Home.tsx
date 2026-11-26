@@ -9,6 +9,7 @@ import { STUDENT_PATH } from '../lib/classroom';
 import { MUNGYEONG_AIR_TABLE } from '../lib/mungyeong-air';
 import { TimerBoard } from './TimerBoard';
 import { VentMetric } from './VentMetric';
+import { AirForecast } from './AirForecast';
 import './vent-board.css';
 
 const sourceLabel: Record<ReadingSource, string> = { demo: '데모 · 가상 데이터', csv: 'CSV · 재생 데이터', serial: '센서 · 실측 데이터' };
@@ -95,6 +96,7 @@ export default function Home() {
           <VentMetric icon={<Thermometer size={20}/>} label="교실 온도" detail={latest ? '실내 온도' : '미측정'}><span>{latest?.temperature.toFixed(2) ?? '—'}</span> {latest && <small>°C</small>}</VentMetric>
            <VentMetric icon={<Wind size={20}/>} label="바깥 미세먼지" detail={provincialAir ? <><div>PM10 {provincialAir.pm10} ㎍/㎥ · {clock(provincialAir.measuredAt)} 관측</div>{tableLink}</> : air ? `관측 ${clock(air.measuredAt)}${s?.source === 'demo' ? ' · 가상' : ' · 에어코리아'}` : s?.source === 'csv' ? '재생 시각의 관측값 없음' : replaying ? '유효한 관측값이 없어요' : tableLink}><span className={`vent-air-value${!air && !replaying ? ' vent-air-unknown' : ''}`}>{air?.grade ?? (replaying ? '확인 필요' : '바깥 미세먼지 확인 필요')}</span></VentMetric>
         </div>
+        {!replaying && <AirForecast />}
         {!replaying && <section className="vent-window" aria-label="창문 열기 기록">
           <div className="vent-window-time"><h2 className="vent-metric-label"><span aria-hidden="true"><Clock3 size={20}/></span>마지막 창문 열기 시각</h2><div className="vent-window-value" aria-live="polite">{lastWindow === null ? <strong className="vent-window-empty">기록 없음</strong> : <strong><time dateTime={new Date(lastWindow).toISOString()}>{clock(lastWindow)}</time></strong>}</div><p>{lastWindow === null ? '이 브라우저에 남은 창문 열기 기록이 없어요.' : <>{dayKey(lastWindow) === dayKey(overviewNow) ? '오늘' : dayKey(lastWindow)} · {elapsedSince(lastWindow, overviewNow)} 지남</>}</p></div>
           {!active && <div className="vent-manual"><h2>새 행동 기록</h2><p>방금 한 행동을 남겨요. 알림 응답 건수에는 포함되지 않아요.</p><div><button className="vent-btn" onClick={() => recordManually('창문 열었어요')}>창문 열었어요</button><button className="vent-btn" onClick={() => recordManually('공기청정기 켰어요')}>공기청정기 켰어요</button></div>{manualNotice && <p className="vent-manual-feedback" role="status">{manualNotice}</p>}</div>}
